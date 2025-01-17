@@ -17,13 +17,17 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
             font-family: 'Jost', sans-serif;
             background-color: #141414;
             color: #f4f4f9;
             padding: 16px;
             box-sizing: border-box;
+        }
+
+        footer {
+            margin-top: 10vh;
         }
 
         img {
@@ -44,10 +48,8 @@
             color: #ff7139;
             font-size: 1.5rem;
             display: flex;
-            justify-content: center;
             align-items: center;
             transition: color 0.3s ease, transform 0.2s ease;
-            text-decoration: none;
             margin: 10px;
         }
 
@@ -55,17 +57,13 @@
             color: #4abb64;
             transform: scale(1.1);
         }
-
-        .social-buttons svg path {
-            fill: currentColor;
-        }
     </style>
 </head>
 
 <body>
     <img src="logo.png" alt="Logo">
     <h1>We're still working on this website.</h1>
-    <h3>In the meantime, follow us on these!</h3>
+    <h3>In the meantime, follow us on your favourite platform!</h3>
 
     <div class="social-buttons">
         <a href="https://store.steampowered.com/publisher/cowboytoadgames" title="Steam">
@@ -123,6 +121,9 @@
             </svg>
         </a>
     </div>
+    <footer>
+        <p>Copyright © 2024 Cowboy Toad Games LTD. All Rights Reserved.</p>
+    </footer>
 </body>
 
 </html>

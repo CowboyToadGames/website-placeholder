@@ -5,6 +5,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lip Sync Animation</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ff7139">
+    
+    <!-- Apple PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="LipSync">
+    <link rel="apple-touch-icon" href="/favicon.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+    
     <style>
         body {
             font-family: 'Jost';
@@ -174,6 +188,21 @@
             color: #b8b8b8;
         }
 
+        .install-prompt {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #ff7139;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            display: none;
+            z-index: 1000;
+        }
+
         @media (max-width: 1024px) {
             .container {
                 flex-direction: column;
@@ -254,6 +283,8 @@
         </div>
     </div>
 
+    <button id="install-btn" class="install-prompt">Install App</button>
+
     <script>
         const PHONEME_MAP = {
             // Vowels
@@ -273,6 +304,41 @@
 
         const VOWELS = new Set(['E', 'O', 'A']);
         const VISEMES = ['MBP', 'E', 'O', 'A', 'FV', 'TS', 'LN'];
+
+        // PWA Install functionality
+        let deferredPrompt;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('install-btn').style.display = 'block';
+        });
+
+        document.getElementById('install-btn').addEventListener('click', () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                        document.getElementById('install-btn').style.display = 'none';
+                    }
+                    deferredPrompt = null;
+                });
+            }
+        });
+
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then((registration) => {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch((registrationError) => {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
 
         class LipSyncApp {
             constructor() {

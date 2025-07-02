@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lip Sync Animation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .control-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="file"],
+        select,
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #preview-area {
+            margin-top: 30px;
+            text-align: center;
+            min-height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            border: 2px dashed #ddd;
+        }
+        #viseme-display {
+            width: 200px;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #viseme-display img {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        .viseme-fallback {
+            padding: 20px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e7f3ff;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .error {
+            color: #d32f2f;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NCC LipSync</h1>
+        
+        <div class="control-group">
+            <label for="audio-file">Select Audio File:</label>
+            <input type="file" id="audio-file" accept="audio/*">
+            <div id="audio-error" class="error"></div>
+        </div>
+
+        <div class="control-group">
+            <label for="phonetic-input">Phonetic String:</label>
+            <input type="text" id="phonetic-input" placeholder="Enter phonetic string (e.g., hɛloʊ.wɜːld)">
+        </div>
+        
+        <div class="control-group">
+            <label for="character-select">Select Character:</label>
+            <select id="character-select">
+                <option value="diego">Diego</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label for="framerate-select">Framerate (FPS):</label>
+            <select id="framerate-select">
+                <option value="12">12 FPS</option>
+                <option value="16" selected>16 FPS</option>
+                <option value="24">24 FPS</option>
+                <option value="30">30 FPS</option>
+                <option value="60">60 FPS</option>
+            </select>
+        </div>
+        
+        <button id="preview-btn" disabled>Preview Animation</button>
+        <button id="stop-btn" style="display: none;">Stop</button>
+        
+        <div class="info" id="duration-info" style="display: none;">
+            Audio Duration: <span id="duration-display">0</span> seconds
+        </div>
+        
+        <div id="preview-area">
+            <div id="viseme-display">
+                <div class="viseme-fallback">Select audio and enter phonetics</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PHONEME_MAP = {
+            // Vowels
+            'i': 'E', 'ɪ': 'E', 'e': 'E', 'ɛ': 'E', 'eɪ': 'E', 'ɪə': 'E',
+            'u': 'O', 'ʊ': 'O', 'uː': 'O', 'ʊə': 'O', 'o': 'O', 'ɔ': 'O', 
+            'ɔː': 'O', 'oʊ': 'O', 'ɔɪ': 'O', 'w': 'O', 'r': 'O', 'ɹ': 'O',
+            'æ': 'A', 'a': 'A', 'ɑ': 'A', 'ɑː': 'A', 'ʌ': 'A', 'ə': 'A', 
+            'ɜ': 'A', 'ɜː': 'A', 'aɪ': 'A', 'aʊ': 'A',
+            // Consonants
+            'f': 'FV', 'v': 'FV',
+            't': 'TS', 's': 'TS', 'z': 'TS', 'd': 'TS', 'n': 'TS', 
+            'ʃ': 'TS', 'ʒ': 'TS', 'tʃ': 'TS', 'dʒ': 'TS',
+            'l': 'LN', 'ð': 'LN', 'θ': 'LN',
+            // Bilabials
+            'p': 'MBP', 'b': 'MBP', 'm': 'MBP'
+        };
+        
+        const VOWELS = new Set(['E', 'O', 'A']);
+        const VISEMES = ['MBP', 'E', 'O', 'A', 'FV', 'TS', 'LN'];
+        
+        class LipSyncApp {
+            constructor() {
+                this.audioFile = null;
+                this.audioDuration = 0;
+                this.animationId = null;
+                this.audioElement = null;
+                this.imageCache = new Map();
+                
+                this.initElements();
+                this.bindEvents();
+                this.preloadImages();
+            }
+            
+            initElements() {
+                this.audioInput = document.getElementById('audio-file');
+                this.characterSelect = document.getElementById('character-select');
+                this.framerateSelect = document.getElementById('framerate-select');
+                this.phoneticInput = document.getElementById('phonetic-input');
+                this.previewBtn = document.getElementById('preview-btn');
+                this.stopBtn = document.getElementById('stop-btn');
+                this.durationInfo = document.getElementById('duration-info');
+                this.durationDisplay = document.getElementById('duration-display');
+                this.visemeDisplay = document.getElementById('viseme-display');
+                this.audioError = document.getElementById('audio-error');
+            }
+            
+            bindEvents() {
+                this.audioInput.addEventListener('change', (e) => this.handleAudioFile(e));
+                this.phoneticInput.addEventListener('input', () => this.updateUI());
+                this.previewBtn.addEventListener('click', () => this.startAnimation());
+                this.stopBtn.addEventListener('click', () => this.stopAnimation());
+            }
+            
+            preloadImages() {
+                VISEMES.forEach(viseme => {
+                    const img = new Image();
+                    img.src = `${viseme}.svg`;
+                    this.imageCache.set(viseme, img);
+                });
+            }
+            
+            handleAudioFile(e) {
+                const file = e.target.files[0];
+                this.audioError.textContent = '';
+                
+                if (!file) {
+                    this.resetAudio();
+                    return;
+                }
+                
+                this.audioFile = file;
+                const audio = new Audio();
+                const url = URL.createObjectURL(file);
+                
+                audio.addEventListener('loadedmetadata', () => {
+                    this.audioDuration = audio.duration;
+                    this.durationDisplay.textContent = audio.duration.toFixed(2);
+                    this.durationInfo.style.display = 'block';
+                    URL.revokeObjectURL(url);
+                    this.updateUI();
+                });
+                
+                audio.addEventListener('error', () => {
+                    this.audioError.textContent = 'Error loading audio file';
+                    this.resetAudio();
+                    URL.revokeObjectURL(url);
+                });
+                
+                audio.src = url;
+            }
+            
+            resetAudio() {
+                this.audioFile = null;
+                this.audioDuration = 0;
+                this.durationInfo.style.display = 'none';
+                this.updateUI();
+            }
+            
+            updateUI() {
+                const canPreview = this.audioFile && this.phoneticInput.value.trim();
+                this.previewBtn.disabled = !canPreview;
+                
+                if (!canPreview && !this.animationId) {
+                    this.displayViseme('MBP');
+                }
+            }
+            
+            parsePhonetics(phonetic) {
+                const segments = [];
+                let i = 0;
+                
+                while (i < phonetic.length) {
+                    if (phonetic[i] === '.') {
+                        segments.push({ type: 'pause', duration: 500 });
+                        i++;
+                        continue;
+                    }
+                    
+                    // Try to match longest phoneme first
+                    let matched = false;
+                    for (let len = 3; len >= 1; len--) {
+                        const substr = phonetic.substring(i, i + len);
+                        if (PHONEME_MAP[substr]) {
+                            segments.push({ 
+                                type: 'phoneme', 
+                                phoneme: substr, 
+                                viseme: PHONEME_MAP[substr] 
+                            });
+                            i += len;
+                            matched = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!matched) {
+                        // Unknown phoneme, default to MBP
+                        segments.push({ 
+                            type: 'phoneme', 
+                            phoneme: phonetic[i], 
+                            viseme: 'MBP' 
+                        });
+                        i++;
+                    }
+                }
+                
+                return segments;
+            }
+            
+            generateTimeline(segments, duration, fps) {
+                const msPerFrame = 1000 / fps;
+                const totalFrames = Math.round(duration * 1000 / msPerFrame);
+                const timeline = new Array(totalFrames).fill('MBP');
+                
+                // Calculate durations
+                const pauseDuration = segments
+                    .filter(s => s.type === 'pause')
+                    .reduce((sum, s) => sum + s.duration, 0);
+                
+                const phonemes = segments.filter(s => s.type === 'phoneme');
+                const availableTime = (duration * 1000) - pauseDuration;
+                
+                if (phonemes.length > 0) {
+                    const baseTime = availableTime / phonemes.length;
+                    
+                    // Assign durations with vowel emphasis
+                    phonemes.forEach(s => {
+                        const isVowel = VOWELS.has(s.viseme);
+                        s.duration = baseTime * (isVowel ? 1.3 : 0.8);
+                    });
+                    
+                    // Normalize to fit exactly
+                    const totalPhonemeTime = phonemes.reduce((sum, s) => sum + s.duration, 0);
+                    const scale = availableTime / totalPhonemeTime;
+                    phonemes.forEach(s => s.duration *= scale);
+                }
+                
+                // Build timeline
+                let currentTime = 0;
+                segments.forEach(segment => {
+                    const startFrame = Math.round(currentTime / msPerFrame);
+                    const endFrame = Math.round((currentTime + segment.duration) / msPerFrame);
+                    const viseme = segment.type === 'pause' ? 'MBP' : segment.viseme;
+                    
+                    for (let f = startFrame; f < endFrame && f < totalFrames; f++) {
+                        timeline[f] = viseme;
+                    }
+                    
+                    currentTime += segment.duration;
+                });
+                
+                return { timeline, msPerFrame };
+            }
+            
+            displayViseme(viseme) {
+                const img = this.imageCache.get(viseme);
+                
+                if (img && img.complete && img.naturalHeight !== 0) {
+                    this.visemeDisplay.innerHTML = '';
+                    this.visemeDisplay.appendChild(img.cloneNode());
+                } else {
+                    this.visemeDisplay.innerHTML = `<div class="viseme-fallback">${viseme}</div>`;
+                }
+            }
+            
+            startAnimation() {
+                this.stopAnimation();
+                
+                const phonetic = this.phoneticInput.value.trim();
+                const fps = parseInt(this.framerateSelect.value);
+                
+                const segments = this.parsePhonetics(phonetic);
+                const { timeline, msPerFrame } = this.generateTimeline(segments, this.audioDuration, fps);
+                
+                // Play audio
+                this.audioElement = new Audio(URL.createObjectURL(this.audioFile));
+                this.audioElement.play();
+                
+                // Update UI
+                this.previewBtn.style.display = 'none';
+                this.stopBtn.style.display = 'inline-block';
+                
+                // Start animation
+                const startTime = performance.now();
+                let lastFrame = -1;
+                
+                const animate = () => {
+                    const elapsed = performance.now() - startTime;
+                    const currentFrame = Math.floor(elapsed / msPerFrame);
+                    
+                    if (currentFrame !== lastFrame && currentFrame < timeline.length) {
+                        this.displayViseme(timeline[currentFrame]);
+                        lastFrame = currentFrame;
+                    }
+                    
+                    if (elapsed < this.audioDuration * 1000) {
+                        this.animationId = requestAnimationFrame(animate);
+                    } else {
+                        this.stopAnimation();
+                    }
+                };
+                
+                this.animationId = requestAnimationFrame(animate);
+            }
+            
+            stopAnimation() {
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                    this.animationId = null;
+                }
+                
+                if (this.audioElement) {
+                    this.audioElement.pause();
+                    this.audioElement = null;
+                }
+                
+                this.displayViseme('MBP');
+                this.previewBtn.style.display = 'inline-block';
+                this.stopBtn.style.display = 'none';
+            }
+        }
+        
+        // Initialize app
+        const app = new LipSyncApp();
+    </script>
+</body>
+</html>

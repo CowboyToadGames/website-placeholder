@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Not Found | Cowboy Toad Games</title>
+    <link rel="icon" href="favicon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Jost:wght@400;600;900&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Jost';
+            background-color: #141414;
+            color: #f4f4f9;
+        }
+
+        .error-number {
+            font-size: 8rem;
+            font-weight: 900;
+            color: #ff7139;
+            text-shadow: 0 0 20px rgba(255, 113, 57, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-zero {
+            width: 6rem;
+            height: 6rem;
+            filter: drop-shadow(0 0 20px rgba(255, 113, 57, 0.3));
+        }
+
+        .error-title {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 600;
+        }
+
+        .error-message {
+            font-size: 1rem;
+            color: #b8b8b8;
+        }
+
+        .home-button {
+            padding: 1rem 2rem;
+            margin-top: 2rem;
+            background: #ff7139;
+            color: white;
+            text-decoration: none;
+            border-radius: 1rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 15px rgba(255, 113, 57, 0.3);
+        }
+
+        .home-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 113, 57, 0.4);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="error-number">
+        4<img src="logoround.svg" alt="0" class="logo-zero">4
+    </div>
+    <h2 class="error-title">Oops! Page Not Found</h2>
+    <p class="error-message">
+        That's not a real page. Check the address!
+    </p>
+    <a href="/" class="home-button">Home</a>
+</body>
+
+</html>

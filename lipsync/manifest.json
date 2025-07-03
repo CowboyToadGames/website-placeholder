@@ -1,12 +1,12 @@
 {
   "name": "Lip Sync Animation Tool",
   "short_name": "LipSync",
-  "description": "A tool for creating lip sync animations from audio and text",
-  "start_url": "/",
+  "description": "A tool for creating lip sync animations from audio and text.",
+  "start_url": "/lipsync/",
   "display": "standalone",
   "background_color": "#141414",
-  "theme_color": "#ff7139",
-  "orientation": "portrait-primary",
+  "theme_color": "#141414",
+  "orientation": "landscape-primary",
   "scope": "/",
   "icons": [
     {
@@ -20,21 +20,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable any"
-    }
-  ],
-  "categories": ["entertainment", "multimedia", "utilities"],
-  "screenshots": [
-    {
-      "src": "screenshot-wide.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide"
-    },
-    {
-      "src": "screenshot-narrow.png",
-      "sizes": "375x812",
-      "type": "image/png",
-      "form_factor": "narrow"
     }
   ]
 }

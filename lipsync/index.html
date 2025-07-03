@@ -5,20 +5,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lip Sync Animation</title>
-    
+
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ff7139">
-    
+
     <!-- Apple PWA Meta Tags -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="LipSync">
     <link rel="apple-touch-icon" href="icon-192.png">
-    
+
     <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
-    
+
     <style>
         body {
             font-family: 'Jost';
@@ -188,21 +188,6 @@
             color: #b8b8b8;
         }
 
-        .install-prompt {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #ff7139;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 0.5rem;
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
-            display: none;
-            z-index: 1000;
-        }
-
         @media (max-width: 1024px) {
             .container {
                 flex-direction: column;
@@ -233,6 +218,20 @@
                 <label for="api-key">Gemini API Key:</label>
                 <input type="password" id="api-key" placeholder="Enter your Gemini API key">
                 <div class="error" id="api-error"></div>
+            </div>
+
+            <div class="control-group">
+                <label for="character-select">Character:</label>
+                <select id="character-select">
+                    <option value="">Loading characters...</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="angle-select">Angle:</label>
+                <select id="angle-select">
+                    <option value="">Select angle...</option>
+                </select>
             </div>
 
             <div class="control-group">
@@ -277,13 +276,11 @@
         <div class="preview-section">
             <div id="preview-area">
                 <div id="viseme-display">
-                    <div class="viseme-fallback">Select audio and enter text</div>
+                    <div class="viseme-fallback">Select character and audio</div>
                 </div>
             </div>
         </div>
     </div>
-
-    <button id="install-btn" class="install-prompt">Install App</button>
 
     <script>
         const PHONEME_MAP = {
@@ -304,28 +301,6 @@
 
         const VOWELS = new Set(['E', 'O', 'A']);
         const VISEMES = ['MBP', 'E', 'O', 'A', 'FV', 'TS', 'LN'];
-
-        // PWA Install functionality
-        let deferredPrompt;
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            document.getElementById('install-btn').style.display = 'block';
-        });
-
-        document.getElementById('install-btn').addEventListener('click', () => {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('User accepted the install prompt');
-                        document.getElementById('install-btn').style.display = 'none';
-                    }
-                    deferredPrompt = null;
-                });
-            }
-        });
 
         // Register service worker
         if ('serviceWorker' in navigator) {
@@ -348,17 +323,20 @@
                 this.audioElement = null;
                 this.imageCache = new Map();
                 this.ipaPhonetics = '';
+                this.charactersConfig = null;
+                this.selectedCharacter = '';
+                this.selectedAngle = '';
 
                 this.bindElements();
                 this.bindEvents();
-                this.preloadImages();
+                this.loadCharactersConfig();
             }
 
             bindElements() {
                 const ids = ['audio-file', 'text-input', 'api-key', 'transcribe-btn', 'ipa-output',
                     'transcribe-status', 'transcribe-error', 'api-error', 'preview-btn',
                     'stop-btn', 'duration-info', 'duration-display', 'viseme-display',
-                    'audio-error', 'framerate-select'];
+                    'audio-error', 'framerate-select', 'character-select', 'angle-select'];
 
                 ids.forEach(id => {
                     this[id.replace(/-/g, '_')] = document.getElementById(id);
@@ -372,12 +350,89 @@
                 this.transcribe_btn.onclick = () => this.transcribeText();
                 this.preview_btn.onclick = () => this.startAnimation();
                 this.stop_btn.onclick = () => this.stopAnimation();
+                this.character_select.onchange = () => this.handleCharacterChange();
+                this.angle_select.onchange = () => this.handleAngleChange();
+            }
+
+            async loadCharactersConfig() {
+                try {
+                    const response = await fetch('characters.json');
+                    if (response.ok) {
+                        this.charactersConfig = await response.json();
+                        this.populateCharacterDropdown();
+                    } else {
+                        // Fallback config if file doesn't exist
+                        this.charactersConfig = {
+                            characters: [
+                            ]
+                        };
+                        this.populateCharacterDropdown();
+                    }
+                } catch (error) {
+                    console.error('Error loading characters config:', error);
+                    // Use fallback config
+                    this.charactersConfig = {
+                        characters: [
+                        ]
+                    };
+                    this.populateCharacterDropdown();
+                }
+            }
+
+            populateCharacterDropdown() {
+                this.character_select.innerHTML = '<option value="">Select character...</option>';
+
+                this.charactersConfig.characters.forEach(character => {
+                    const option = document.createElement('option');
+                    option.value = character.id;
+                    option.textContent = character.name;
+                    this.character_select.appendChild(option);
+                });
+            }
+
+            handleCharacterChange() {
+                const selectedCharacterId = this.character_select.value;
+                this.selectedCharacter = selectedCharacterId;
+
+                // Clear angle dropdown
+                this.angle_select.innerHTML = '<option value="">Select angle...</option>';
+                this.selectedAngle = '';
+
+                if (selectedCharacterId) {
+                    const character = this.charactersConfig.characters.find(c => c.id === selectedCharacterId);
+                    if (character) {
+                        character.angles.forEach(angle => {
+                            const option = document.createElement('option');
+                            option.value = angle;
+                            option.textContent = `${angle}°`;
+                            this.angle_select.appendChild(option);
+                        });
+                    }
+                }
+
+                // Clear image cache when character changes
+                this.imageCache.clear();
+                this.updateUI();
+            }
+
+            handleAngleChange() {
+                this.selectedAngle = this.angle_select.value;
+
+                // Clear and preload images for new character/angle combination
+                this.imageCache.clear();
+                if (this.selectedCharacter && this.selectedAngle) {
+                    this.preloadImages();
+                }
+
+                this.updateUI();
             }
 
             preloadImages() {
+                if (!this.selectedCharacter || !this.selectedAngle) return;
+
                 VISEMES.forEach(viseme => {
                     const img = new Image();
-                    img.src = `${viseme}.svg`;
+                    img.src = `${this.selectedCharacter}/${this.selectedAngle}/${viseme.toLowerCase()}.svg`;
                     this.imageCache.set(viseme, img);
                 });
             }
@@ -419,9 +474,11 @@
                 const hasText = this.text_input.value.trim();
                 const hasAudio = this.audioFile;
                 const hasIPA = this.ipaPhonetics;
+                const hasCharacter = this.selectedCharacter;
+                const hasAngle = this.selectedAngle;
 
                 this.transcribe_btn.disabled = !hasApiKey || !hasText;
-                this.preview_btn.disabled = !hasAudio || !hasIPA;
+                this.preview_btn.disabled = !hasAudio || !hasIPA || !hasCharacter || !hasAngle;
 
                 if (!this.preview_btn.disabled && !this.animationId) {
                     this.displayViseme('MBP');
@@ -571,13 +628,26 @@
             }
 
             displayViseme(viseme) {
+                if (!this.selectedCharacter || !this.selectedAngle) {
+                    this.viseme_display.innerHTML = `<div class="viseme-fallback">Select character and angle</div>`;
+                    return;
+                }
+
                 const img = this.imageCache.get(viseme);
 
                 if (img && img.complete && img.naturalHeight !== 0) {
                     this.viseme_display.innerHTML = '';
                     this.viseme_display.appendChild(img.cloneNode());
                 } else {
-                    this.viseme_display.innerHTML = `<div class="viseme-fallback">${viseme}</div>`;
+                    const newImg = new Image();
+                    newImg.src = `${this.selectedCharacter}/${this.selectedAngle}/${viseme.toLowerCase()}.svg`;
+                    newImg.onload = () => {
+                        this.viseme_display.innerHTML = '';
+                        this.viseme_display.appendChild(newImg);
+                    };
+                    newImg.onerror = () => {
+                        this.viseme_display.innerHTML = `<div class="viseme-fallback">${viseme}</div>`;
+                    };
                 }
             }
 
@@ -643,4 +713,5 @@
         new LipSyncApp();
     </script>
 </body>
+
 </html>

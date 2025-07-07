@@ -44,14 +44,6 @@
         }
 
         .form-section {
-            flex: 1;
-            min-width: 400px;
-        }
-
-        .preview-section {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
             min-width: 400px;
         }
 
@@ -284,7 +276,7 @@
 
         <div class="preview-section">
             <div id="preview-area">
-                <canvas id="render-canvas" width="1920" height="1080"></canvas>
+                <canvas id="render-canvas" width="1080" height="1080"></canvas>
             </div>
         </div>
     </div>
@@ -371,7 +363,7 @@
             initCanvas() {
                 this.canvas = this.render_canvas;
                 this.ctx = this.canvas.getContext('2d');
-                this.ctx.fillRect(0, 0, 1920, 1080);
+                this.ctx.fillRect(0, 0, 1080, 1080);
             }
 
             async loadCharactersConfig() {
@@ -644,14 +636,14 @@
             }
 
             displayViseme(viseme) {
-                this.ctx.fillRect(0, 0, 1920, 1080);
+                this.ctx.fillRect(0, 0, 1080, 1080);
 
                 if (!this.selectedCharacter || !this.selectedAngle) {
                     this.ctx.fillStyle = '#ff7139';
                     this.ctx.font = '48px Arial';
                     this.ctx.textAlign = 'center';
                     this.ctx.textBaseline = 'middle';
-                    this.ctx.fillText('Select character and angle', 960, 540);
+                    this.ctx.fillText('Select character and angle', 540, 540);
                     return;
                 }
 
@@ -666,7 +658,7 @@
                         drawWidth = drawHeight * aspectRatio;
                     }
 
-                    const x = (1920 - drawWidth) / 2;
+                    const x = (1080 - drawWidth) / 2;
                     const y = (1080 - drawHeight) / 2;
 
                     this.ctx.drawImage(img, x, y, drawWidth, drawHeight);
@@ -675,7 +667,7 @@
                     this.ctx.font = '72px Arial';
                     this.ctx.textAlign = 'center';
                     this.ctx.textBaseline = 'middle';
-                    this.ctx.fillText(viseme, 960, 540);
+                    this.ctx.fillText(viseme, 540, 540);
                 }
             }
 

@@ -120,6 +120,10 @@
             background-color: #2196F3;
         }
 
+        .export-btn {
+            background-color: #4CAF50;
+        }
+
         #preview-area {
             text-align: center;
             flex: 1;
@@ -132,17 +136,11 @@
             min-height: 400px;
         }
 
-        #viseme-display {
-            width: 80%;
-            height: 80%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #viseme-display img {
+        #render-canvas {
             max-width: 100%;
             max-height: 100%;
+            object-fit: contain;
+            border-radius: 0.5rem;
         }
 
         .viseme-fallback {
@@ -188,6 +186,17 @@
             color: #b8b8b8;
         }
 
+        .progress {
+            margin-top: 10px;
+            padding: 12px;
+            background-color: rgba(76, 175, 80, 0.1);
+            border: 1px solid rgba(76, 175, 80, 0.3);
+            border-radius: 0.5rem;
+            font-size: 14px;
+            display: none;
+            color: #b8b8b8;
+        }
+
         @media (max-width: 1024px) {
             .container {
                 flex-direction: column;
@@ -197,11 +206,6 @@
             .form-section,
             .preview-section {
                 min-width: unset;
-            }
-
-            #viseme-display {
-                width: 80%;
-                height: 80%;
             }
 
             #preview-area {
@@ -267,17 +271,20 @@
 
             <button id="preview-btn" disabled>Preview Animation</button>
             <button id="stop-btn" style="display: none;">Stop</button>
+            <button id="export-btn" class="export-btn" disabled>Export Video</button>
 
             <div class="info" id="duration-info">
                 Audio Duration: <span id="duration-display">0</span> seconds
+            </div>
+
+            <div class="progress" id="export-progress">
+                Exporting: <span id="export-status">0 / 0</span> frames
             </div>
         </div>
 
         <div class="preview-section">
             <div id="preview-area">
-                <div id="viseme-display">
-                    <div class="viseme-fallback">Select character and audio</div>
-                </div>
+                <canvas id="render-canvas" width="1920" height="1080"></canvas>
             </div>
         </div>
     </div>
@@ -326,17 +333,23 @@
                 this.charactersConfig = null;
                 this.selectedCharacter = '';
                 this.selectedAngle = '';
+                this.canvas = null;
+                this.ctx = null;
+                this.timeline = [];
+                this.msPerFrame = 0;
 
                 this.bindElements();
                 this.bindEvents();
+                this.initCanvas();
                 this.loadCharactersConfig();
             }
 
             bindElements() {
                 const ids = ['audio-file', 'text-input', 'api-key', 'transcribe-btn', 'ipa-output',
                     'transcribe-status', 'transcribe-error', 'api-error', 'preview-btn',
-                    'stop-btn', 'duration-info', 'duration-display', 'viseme-display',
-                    'audio-error', 'framerate-select', 'character-select', 'angle-select'];
+                    'stop-btn', 'duration-info', 'duration-display', 'render-canvas',
+                    'audio-error', 'framerate-select', 'character-select', 'angle-select',
+                    'export-btn', 'export-progress', 'export-status'];
 
                 ids.forEach(id => {
                     this[id.replace(/-/g, '_')] = document.getElementById(id);
@@ -350,8 +363,16 @@
                 this.transcribe_btn.onclick = () => this.transcribeText();
                 this.preview_btn.onclick = () => this.startAnimation();
                 this.stop_btn.onclick = () => this.stopAnimation();
+                this.export_btn.onclick = () => this.exportVideo();
                 this.character_select.onchange = () => this.handleCharacterChange();
                 this.angle_select.onchange = () => this.handleAngleChange();
+            }
+
+            initCanvas() {
+                this.canvas = this.render_canvas;
+                this.ctx = this.canvas.getContext('2d');
+                this.ctx.fillStyle = '#2a2a2a';
+                this.ctx.fillRect(0, 0, 1920, 1080);
             }
 
             async loadCharactersConfig() {
@@ -361,20 +382,12 @@
                         this.charactersConfig = await response.json();
                         this.populateCharacterDropdown();
                     } else {
-                        // Fallback config if file doesn't exist
-                        this.charactersConfig = {
-                            characters: [
-                            ]
-                        };
+                        this.charactersConfig = { characters: [] };
                         this.populateCharacterDropdown();
                     }
                 } catch (error) {
                     console.error('Error loading characters config:', error);
-                    // Use fallback config
-                    this.charactersConfig = {
-                        characters: [
-                        ]
-                    };
+                    this.charactersConfig = { characters: [] };
                     this.populateCharacterDropdown();
                 }
             }
@@ -394,7 +407,6 @@
                 const selectedCharacterId = this.character_select.value;
                 this.selectedCharacter = selectedCharacterId;
 
-                // Clear angle dropdown
                 this.angle_select.innerHTML = '<option value="">Select angle...</option>';
                 this.selectedAngle = '';
 
@@ -410,7 +422,6 @@
                     }
                 }
 
-                // Clear image cache when character changes
                 this.imageCache.clear();
                 this.updateUI();
             }
@@ -418,7 +429,6 @@
             handleAngleChange() {
                 this.selectedAngle = this.angle_select.value;
 
-                // Clear and preload images for new character/angle combination
                 this.imageCache.clear();
                 if (this.selectedCharacter && this.selectedAngle) {
                     this.preloadImages();
@@ -427,14 +437,26 @@
                 this.updateUI();
             }
 
-            preloadImages() {
+            async preloadImages() {
                 if (!this.selectedCharacter || !this.selectedAngle) return;
 
-                VISEMES.forEach(viseme => {
+                const loadPromises = VISEMES.map(async viseme => {
                     const img = new Image();
                     img.src = `${this.selectedCharacter}/${this.selectedAngle}/${viseme.toLowerCase()}.svg`;
+
+                    await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = reject;
+                    });
+
                     this.imageCache.set(viseme, img);
                 });
+
+                try {
+                    await Promise.all(loadPromises);
+                } catch (error) {
+                    console.error('Error preloading images:', error);
+                }
             }
 
             handleAudioFile(e) {
@@ -479,6 +501,7 @@
 
                 this.transcribe_btn.disabled = !hasApiKey || !hasText;
                 this.preview_btn.disabled = !hasAudio || !hasIPA || !hasCharacter || !hasAngle;
+                this.export_btn.disabled = !hasAudio || !hasIPA || !hasCharacter || !hasAngle;
 
                 if (!this.preview_btn.disabled && !this.animationId) {
                     this.displayViseme('MBP');
@@ -552,7 +575,6 @@
                         continue;
                     }
 
-                    // Try to match longest phoneme first
                     let matched = false;
                     for (let len = 3; len >= 1; len--) {
                         const substr = phonetic.substring(i, i + len);
@@ -569,7 +591,6 @@
                     }
 
                     if (!matched) {
-                        // Unknown phoneme, default to MBP
                         segments.push({
                             type: 'phoneme',
                             phoneme: phonetic[i],
@@ -587,7 +608,6 @@
                 const totalFrames = Math.round(duration * 1000 / msPerFrame);
                 const timeline = new Array(totalFrames).fill('MBP');
 
-                // Calculate durations
                 const pauseDuration = segments
                     .filter(s => s.type === 'pause')
                     .reduce((sum, s) => sum + s.duration, 0);
@@ -598,19 +618,16 @@
                 if (phonemes.length > 0) {
                     const baseTime = availableTime / phonemes.length;
 
-                    // Assign durations with vowel emphasis
                     phonemes.forEach(s => {
                         const isVowel = VOWELS.has(s.viseme);
                         s.duration = baseTime * (isVowel ? 1.3 : 0.8);
                     });
 
-                    // Normalize to fit exactly
                     const totalPhonemeTime = phonemes.reduce((sum, s) => sum + s.duration, 0);
                     const scale = availableTime / totalPhonemeTime;
                     phonemes.forEach(s => s.duration *= scale);
                 }
 
-                // Build timeline
                 let currentTime = 0;
                 segments.forEach(segment => {
                     const startFrame = Math.round(currentTime / msPerFrame);
@@ -628,26 +645,39 @@
             }
 
             displayViseme(viseme) {
+                this.ctx.fillStyle = '#2a2a2a';
+                this.ctx.fillRect(0, 0, 1920, 1080);
+
                 if (!this.selectedCharacter || !this.selectedAngle) {
-                    this.viseme_display.innerHTML = `<div class="viseme-fallback">Select character and angle</div>`;
+                    this.ctx.fillStyle = '#ff7139';
+                    this.ctx.font = '48px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText('Select character and angle', 960, 540);
                     return;
                 }
 
                 const img = this.imageCache.get(viseme);
-
                 if (img && img.complete && img.naturalHeight !== 0) {
-                    this.viseme_display.innerHTML = '';
-                    this.viseme_display.appendChild(img.cloneNode());
+                    const aspectRatio = img.naturalWidth / img.naturalHeight;
+                    let drawWidth = 800;
+                    let drawHeight = drawWidth / aspectRatio;
+
+                    if (drawHeight > 800) {
+                        drawHeight = 800;
+                        drawWidth = drawHeight * aspectRatio;
+                    }
+
+                    const x = (1920 - drawWidth) / 2;
+                    const y = (1080 - drawHeight) / 2;
+
+                    this.ctx.drawImage(img, x, y, drawWidth, drawHeight);
                 } else {
-                    const newImg = new Image();
-                    newImg.src = `${this.selectedCharacter}/${this.selectedAngle}/${viseme.toLowerCase()}.svg`;
-                    newImg.onload = () => {
-                        this.viseme_display.innerHTML = '';
-                        this.viseme_display.appendChild(newImg);
-                    };
-                    newImg.onerror = () => {
-                        this.viseme_display.innerHTML = `<div class="viseme-fallback">${viseme}</div>`;
-                    };
+                    this.ctx.fillStyle = '#ff7139';
+                    this.ctx.font = '72px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText(viseme, 960, 540);
                 }
             }
 
@@ -661,15 +691,16 @@
                 const segments = this.parsePhonetics(this.ipaPhonetics);
                 const { timeline, msPerFrame } = this.generateTimeline(segments, this.audioDuration, fps);
 
-                // Play audio
+                this.timeline = timeline;
+                this.msPerFrame = msPerFrame;
+
                 this.audioElement = new Audio(URL.createObjectURL(this.audioFile));
                 this.audioElement.play();
 
-                // Update UI
                 this.preview_btn.style.display = 'none';
                 this.stop_btn.style.display = 'inline-block';
+                this.export_btn.disabled = true;
 
-                // Start animation
                 const startTime = performance.now();
                 let lastFrame = -1;
 
@@ -706,6 +737,61 @@
                 this.displayViseme('MBP');
                 this.preview_btn.style.display = 'inline-block';
                 this.stop_btn.style.display = 'none';
+                this.export_btn.disabled = false;
+                this.updateUI();
+            }
+
+            async exportVideo() {
+                if (!this.ipaPhonetics || !this.audioFile) return;
+
+                // Disable controls
+                this.preview_btn.disabled = true;
+                this.export_btn.disabled = true;
+                this.stop_btn.disabled = true;
+                this.export_progress.style.display = 'block';
+
+                const fps = parseInt(this.framerate_select.value);
+                const segments = this.parsePhonetics(this.ipaPhonetics);
+                const { timeline, msPerFrame } = this.generateTimeline(segments, this.audioDuration, fps);
+
+                // Setup MediaRecorder
+                const stream = this.canvas.captureStream(fps);
+                const mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'video/webm;codecs=vp9',
+                    videoBitsPerSecond: 8000000
+                });
+
+                const chunks = [];
+                mediaRecorder.ondataavailable = e => chunks.push(e.data);
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `lipsync_${Date.now()}.webm`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+
+                    // Re-enable controls
+                    this.export_progress.style.display = 'none';
+                    this.updateUI();
+                };
+
+                // Start recording
+                mediaRecorder.start();
+
+                // Render frames
+                for (let frame = 0; frame < timeline.length; frame++) {
+                    this.displayViseme(timeline[frame]);
+                    this.export_status.textContent = `${frame + 1} / ${timeline.length}`;
+
+                    // Wait for next frame
+                    await new Promise(resolve => setTimeout(resolve, msPerFrame));
+                }
+
+                // Stop recording
+                mediaRecorder.stop();
             }
         }
 
